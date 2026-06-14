@@ -85,8 +85,7 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body();
-
+  const { email, password } = req.body;
   if (!email || !password) {
     throw new ApiError(400, "Email and password are required");
   }
@@ -107,7 +106,7 @@ const loginUser = asyncHandler(async (req, res) => {
   // validate password
   const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
-    throw new ApiError(401, "Incorrect Password");
+    throw new ApiError(401, "Incorrect credentials");
   }
 
   // access and refresh Token generated successfully
@@ -121,7 +120,7 @@ const loginUser = asyncHandler(async (req, res) => {
   );
 
   return res
-    .send(200)
+    .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
     .json(
@@ -135,4 +134,18 @@ const loginUser = asyncHandler(async (req, res) => {
     )
 });
 
-export { generateAccessAndRefreshTokens, registerUser, loginUser };
+
+const getCurrentUser = asyncHandler(
+  async (req, res) => {
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        req.user,
+        "Current user fetched successfully"
+      )
+    );
+  }
+);
+
+
+export { generateAccessAndRefreshTokens, registerUser, loginUser ,getCurrentUser};
