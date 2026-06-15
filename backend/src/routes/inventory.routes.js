@@ -1,0 +1,16 @@
+import { Router } from "express";
+import { stockIn,stockOut, getInventory,getInventoryByLocation} from "../controllers/inventory.controller.js";
+import { verifyJwt } from "../middleware/auth.middleware.js";
+import { authorizeRoles } from "../middleware/role.middleware.js";
+
+const inventoryRouter = Router();
+
+inventoryRouter.post("/stock-in",verifyJwt,authorizeRoles("SUPER_ADMIN", "MANAGER"), stockIn);
+
+inventoryRouter.post( "/stock-out",verifyJwt,authorizeRoles("SUPER_ADMIN", "MANAGER"),stockOut);
+
+inventoryRouter.get("/", verifyJwt, getInventory);
+
+inventoryRouter.get("/location/:locationId", verifyJwt, getInventoryByLocation);
+
+export default inventoryRouter;

@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import authRouter from "./routes/auth.routes.js";
 import locationRouter from "./routes/location.routes.js";
 import productRouter from "./routes/product.routes.js";
+import inventoryRouter from "./routes/inventory.routes.js";
 
 const app = express();
 app.use(
@@ -20,4 +21,6 @@ app.use(cookieParser());
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/locations",locationRouter);
 app.use("/api/v1/products",productRouter);
+app.use("api/v1/inventory",inventoryRouter);
+
 export default app;
