@@ -5,6 +5,8 @@ import authRouter from "./routes/auth.routes.js";
 import locationRouter from "./routes/location.routes.js";
 import productRouter from "./routes/product.routes.js";
 import inventoryRouter from "./routes/inventory.routes.js";
+import transactionRouter from "./routes/transaction.routes.js";
+import alertRouter from "./routes/alert.routes.js";
 
 const app = express();
 app.use(
@@ -22,5 +24,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/locations",locationRouter);
 app.use("/api/v1/products",productRouter);
 app.use("/api/v1/inventory", inventoryRouter);
+app.use("/api/v1/transactions", transactionRouter);
+app.use("/api/v1/alerts",alertRouter)
 
 export default app;

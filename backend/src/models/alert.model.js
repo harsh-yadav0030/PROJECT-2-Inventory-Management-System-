@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-
 const alertSchema = new mongoose.Schema({
       product:{
           type:mongoose.Schema.Types.ObjectId,
@@ -20,6 +19,7 @@ const alertSchema = new mongoose.Schema({
         required: true
       },
       status:{// when there is less quantity of product available so we create a alert and alert remain active untill we order new stock and increase the stock above min level
+        type:String,
         enum: ["ACTIVE", "RESOLVED"],
         default: "ACTIVE"
       }
