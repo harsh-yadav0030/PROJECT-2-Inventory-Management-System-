@@ -10,6 +10,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { InventoryTransaction } from "../models/inventoryTransaction.model.js";
+import { Alert } from "../models/alert.model.js";
 
 const stockIn = asyncHandler(async (req, res) => {
   const { productId, locationId, quantity } = req.body;

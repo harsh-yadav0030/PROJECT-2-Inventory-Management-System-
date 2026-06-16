@@ -6,12 +6,14 @@ import {
 } from "../controllers/report.controller.js";
 import { authorizeRoles } from "../middleware/role.middleware.js";
 import { verifyJwt } from "../middleware/auth.middleware.js";
+import { reportFilter } from "../middleware/report.middleware.js";
 
 const reportRouter = Router();
 reportRouter.get(
   "/inventory",
   verifyJwt,
   authorizeRoles("SUPER_ADMIN", "MANAGER"),
+  reportFilter,
   getInventoryReport,
 );
 
@@ -26,6 +28,7 @@ reportRouter.get(
   "/low-stock",
   verifyJwt,
   authorizeRoles("SUPER_ADMIN", "MANAGER"),
+  reportFilter,
   getLowStockReport,
 );
 
