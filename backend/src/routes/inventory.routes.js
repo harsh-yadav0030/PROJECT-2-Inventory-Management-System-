@@ -4,6 +4,7 @@ import {
   stockOut,
   getInventory,
   getInventoryByLocation,
+  transferInventory
 } from "../controllers/inventory.controller.js";
 import { verifyJwt } from "../middleware/auth.middleware.js";
 import { authorizeRoles } from "../middleware/role.middleware.js";
@@ -26,5 +27,12 @@ inventoryRouter.post(
 inventoryRouter.get("/", verifyJwt, getInventory);
 
 inventoryRouter.get("/location/:locationId", verifyJwt, getInventoryByLocation);
+
+inventoryRouter.post(
+  "/transfer",
+  verifyJwt,
+  authorizeRoles("SUPER_ADMIN", "MANAGER"),
+  transferInventory,
+);
 
 export default inventoryRouter;

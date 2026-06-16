@@ -4,7 +4,6 @@ import { verifyJwt } from "../middleware/auth.middleware.js";
 import { authorizeRoles } from "../middleware/role.middleware.js";
 
 const locationRouter = Router();
-
 //only SUPER_ADMIN can make Locations
 locationRouter.post(
   "/",
@@ -16,7 +15,7 @@ locationRouter.post(
 locationRouter.get(
   "/",
   verifyJwt,
-    getAllLocations,
+  getAllLocations,
 );
 
 locationRouter.get(

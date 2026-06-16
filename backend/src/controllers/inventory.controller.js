@@ -204,7 +204,7 @@ const transferInventory = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Source location not found");
   }
 
-  if (!destinationLocationLocation) {
+  if (!destinationLocation) {
     throw new ApiError(404, "destination location not found");
   }
 
@@ -225,7 +225,7 @@ const transferInventory = asyncHandler(async (req, res) => {
   await sourceInventory.save();
 
 
-  const destinationInventory = await Inventory.findOne({
+  let destinationInventory = await Inventory.findOne({
     product: productId,
     location: destinationLocationId,
   });
