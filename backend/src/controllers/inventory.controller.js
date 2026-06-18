@@ -120,7 +120,12 @@ const stockOut = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Quantity must be greater than zero");
   }
 
-  const product = await Product.findById(productId);
+  const session = await mongoose.startSession(); //created a session
+
+  try {
+    session.startTransaction();
+
+  const product = await Product.findById(productId).session(session);
 
   if (!product) {
     throw new ApiError(404, "Product not found");
@@ -129,7 +134,7 @@ const stockOut = asyncHandler(async (req, res) => {
   const inventory = await Inventory.findOne({
     product: productId,
     location: locationId,
-  });
+  }).session(session);
 
   if (!inventory) {
     throw new ApiError(404, "Inventory not found");
@@ -140,36 +145,54 @@ const stockOut = asyncHandler(async (req, res) => {
   }
 
   inventory.quantity -= quantity;
-  await inventory.save();
+  await inventory.save({session});
 
   if (inventory.quantity <= product.reorderLevel) {
     const existingAlert = await Alert.findOne({
       product: productId,
       location: locationId,
       status: "ACTIVE",
-    });
+    })
+    .session(session);
 
     if (!existingAlert) {
-      await Alert.create({
+      await Alert.create([{
         product: productId,
         location: locationId,
         currentQuantity: inventory.quantity,
         reorderLevel: product.reorderLevel,
-      });
+      }],
+      {session});
     }
+    else {
+    existingAlert.currentQuantity =
+        inventory.quantity;
+    await existingAlert.save({
+        session
+    });
+}
   }
 
-  await InventoryTransaction.create({
+  await InventoryTransaction.create([{
     product: productId,
     sourceLocation: locationId,
     quantity,
     type: "STOCK_OUT",
     performedBy: req.user._id,
-  });
+  }],{session});
 
+  await session.commitTransaction();
   return res
     .status(200)
     .json(new ApiResponse(200, inventory, "Stock removed successfully"));
+
+}catch(error){
+   await session.abortTransaction();
+  throw error;
+}
+finally{
+  await session.endSession();
+}
 });
 
 const getInventory = asyncHandler(async (req, res) => {
