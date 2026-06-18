@@ -23,59 +23,91 @@ const stockIn = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Quantity must be greater than zero");
   }
 
-  // check whether product is valid or not
-  const product = await Product.findById(productId);
+  const session = await mongoose.startSession(); //created a session
 
-  if (!product) {
-    throw new ApiError(404, "Product not found");
-  }
+  try {
+    session.startTransaction();
+    // check whether product is valid or not
 
-  // check whether location is valid or not
-  const location = await Location.findById(locationId);
+    const product = await Product.findById(productId).session(session);
 
-  if (!location) {
-    throw new ApiError(404, "Location not found");
-  }
+    if (!product) {
+      throw new ApiError(404, "Product not found");
+    }
 
-  // Inventory search if already present
-  let inventory = await Inventory.findOne({
-    product: productId,
-    location: locationId,
-  });
+    // check whether location is valid or not
+    const location = await Location.findById(locationId).session(session);
 
-  if (!inventory) {
-    inventory = await Inventory.create({
+    if (!location) {
+      throw new ApiError(404, "Location not found");
+    }
+
+    // Inventory search if already present
+    let inventory = await Inventory.findOne({
       product: productId,
       location: locationId,
-      quantity,
-    });
-  } else {
-    inventory.quantity += quantity;
-    await inventory.save();
+    }).session(session);
+
+    //Create Inventory
+    if (!inventory) {
+      inventories = await Inventory.create(
+        [
+          {
+            product: productId,
+            location: locationId,
+            quantity,
+          },
+        ],
+        {
+          session,
+        },
+      );
+      inventory=inventories[0];
+    } 
+    else {
+      inventory.quantity += quantity;
+      await inventory.save({ session });
+    }
+
+    const alert = await Alert.findOne({
+      product: productId,
+      location: locationId,
+      status: "ACTIVE",
+    }).session(session);
+
+    if (alert && inventory.quantity > product.reorderLevel) {
+      alert.status = "RESOLVED";
+      await alert.save({session});
+    }
+
+    //create transaction log
+    await InventoryTransaction.create(
+      [
+        {
+          product: productId,
+          destinationLocation: locationId,
+          quantity,
+          type: "STOCK_IN",
+          performedBy: req.user._id,
+        },
+      ],
+      {
+        session,
+      },
+    );
+
+    // Everything Successful
+    await session.commitTransaction();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, inventory, "Stock added successfully"));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
   }
-
-  const alert = await Alert.findOne({
-    product: productId,
-    location: locationId,
-    status: "ACTIVE",
-  });
-
-  if (alert && inventory.quantity > product.reorderLevel) {
-    alert.status = "RESOLVED";
-    await alert.save();
-  }
-
-  await InventoryTransaction.create({
-    product: productId,
-    destinationLocation: locationId,
-    quantity,
-    type: "STOCK_IN",
-    performedBy: req.user._id,
-  });
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, inventory, "Stock added successfully"));
 });
 
 const stockOut = asyncHandler(async (req, res) => {
@@ -225,47 +257,41 @@ const transferInventory = asyncHandler(async (req, res) => {
   sourceInventory.quantity -= quantity;
   await sourceInventory.save();
 
-
   let destinationInventory = await Inventory.findOne({
     product: productId,
     location: destinationLocationId,
   });
 
- if(!destinationInventory) {
-    destinationInventory =
-            await Inventory.create({
-                product: productId,
-                location:
-                    destinationLocationId,
-                quantity
-            });
- }
- else{
-    destinationInventory.quantity+=quantity;
+  if (!destinationInventory) {
+    destinationInventory = await Inventory.create({
+      product: productId,
+      location: destinationLocationId,
+      quantity,
+    });
+  } else {
+    destinationInventory.quantity += quantity;
     await destinationInventory.save();
- }
+  }
 
- await InventoryTransaction.create({
-        product: productId,
-        sourceLocation: sourceLocationId,
-        destinationLocation:
-            destinationLocationId,
-        quantity,
-        type: "TRANSFER",
-        performedBy: req.user._id
-});
+  await InventoryTransaction.create({
+    product: productId,
+    sourceLocation: sourceLocationId,
+    destinationLocation: destinationLocationId,
+    quantity,
+    type: "TRANSFER",
+    performedBy: req.user._id,
+  });
 
-return res.status(200).json(
-        new ApiResponse(
-            200,
-            {
-                sourceInventory,
-                destinationInventory
-            },
-            "Inventory transferred successfully"
-        )
-);
-
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        sourceInventory,
+        destinationInventory,
+      },
+      "Inventory transferred successfully",
+    ),
+  );
 });
 
 export {
