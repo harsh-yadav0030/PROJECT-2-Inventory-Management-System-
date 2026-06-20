@@ -9,6 +9,7 @@ import transactionRouter from "./routes/transaction.routes.js";
 import alertRouter from "./routes/alert.routes.js";
 import dashboardRouter from "./routes/dashboard.routes.js";
 import reportRouter from "./routes/report.routes.js";
+import auditRouter from "./routes/auditlog.routes.js";
 
 const app = express();
 app.use(
@@ -30,4 +31,6 @@ app.use("/api/v1/transactions", transactionRouter);
 app.use("/api/v1/alerts", alertRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/report",reportRouter);
+app.use("/api/v1/audit-logs",auditRouter);
+
 export default app;
