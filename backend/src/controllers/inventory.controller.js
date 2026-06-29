@@ -11,6 +11,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { InventoryTransaction } from "../models/inventoryTransaction.model.js";
 import { Alert } from "../models/alert.model.js";
+import { createAuditLog } from "../utils/createAudutLogs.js";
 
 const stockIn = asyncHandler(async (req, res) => {
   const { productId, locationId, quantity } = req.body;
@@ -48,9 +49,12 @@ const stockIn = asyncHandler(async (req, res) => {
       location: locationId,
     }).session(session);
 
+
+    const oldQuantity = inventory?.quantity||0;
+
     //Create Inventory
     if (!inventory) {
-      inventories = await Inventory.create(
+      const inventories = await Inventory.create(
         [
           {
             product: productId,
@@ -62,12 +66,13 @@ const stockIn = asyncHandler(async (req, res) => {
           session,
         },
       );
-      inventory=inventories[0];
-    } 
-    else {
+      inventory = inventories[0];
+
+    } else {
       inventory.quantity += quantity;
       await inventory.save({ session });
     }
+
 
     const alert = await Alert.findOne({
       product: productId,
@@ -77,7 +82,7 @@ const stockIn = asyncHandler(async (req, res) => {
 
     if (alert && inventory.quantity > product.reorderLevel) {
       alert.status = "RESOLVED";
-      await alert.save({session});
+      await alert.save({ session });
     }
 
     //create transaction log
@@ -89,12 +94,27 @@ const stockIn = asyncHandler(async (req, res) => {
           quantity,
           type: "STOCK_IN",
           performedBy: req.user._id,
+          remarks: "Stock added in inventory"
         },
       ],
       {
         session,
       },
     );
+
+     await createAuditLog({
+      user: req.user._id,
+      action: "STOCK_IN",
+      entityType: "Inventory",
+      entityId: inventory._id,
+      oldData: {
+        quantity: oldQuantity,
+      },
+      newData: {
+        quantity: inventory.quantity,
+      },
+      session,
+    });
 
     // Everything Successful
     await session.commitTransaction();
@@ -125,74 +145,103 @@ const stockOut = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
-  const product = await Product.findById(productId).session(session);
+    const product = await Product.findById(productId).session(session);
 
-  if (!product) {
-    throw new ApiError(404, "Product not found");
-  }
+    if (!product) {
+      throw new ApiError(404, "Product not found");
+    }
 
-  const inventory = await Inventory.findOne({
-    product: productId,
-    location: locationId,
-  }).session(session);
+    // check whether location is valid or not
+    const location = await Location.findById(locationId).session(session);
 
-  if (!inventory) {
-    throw new ApiError(404, "Inventory not found");
-  }
+    if (!location) {
+      throw new ApiError(404, "Location not found");
+    }
 
-  if (inventory.quantity < quantity) {
-    throw new ApiError(400, "Insufficient stock");
-  }
-
-  inventory.quantity -= quantity;
-  await inventory.save({session});
-
-  if (inventory.quantity <= product.reorderLevel) {
-    const existingAlert = await Alert.findOne({
+    let inventory = await Inventory.findOne({
       product: productId,
       location: locationId,
-      status: "ACTIVE",
-    })
-    .session(session);
+    }).session(session);
 
-    if (!existingAlert) {
-      await Alert.create([{
+    if (!inventory) {
+      throw new ApiError(404, "Inventory not found");
+    }
+
+    if (inventory.quantity < quantity) {
+      throw new ApiError(400, "Insufficient stock");
+    }
+
+    const oldQuantity = inventory.quantity;
+
+    inventory.quantity -= quantity;
+    await inventory.save({ session });
+
+    if (inventory.quantity <= product.reorderLevel) {
+      const existingAlert = await Alert.findOne({
         product: productId,
         location: locationId,
-        currentQuantity: inventory.quantity,
-        reorderLevel: product.reorderLevel,
-      }],
-      {session});
+        status: "ACTIVE",
+      }).session(session);
+
+      if (!existingAlert) {
+        await Alert.create(
+          [
+            {
+              product: productId,
+              location: locationId,
+              currentQuantity: inventory.quantity,
+              reorderLevel: product.reorderLevel,
+            },
+          ],
+          { session },
+        );
+      } else {
+        existingAlert.currentQuantity = inventory.quantity;
+        await existingAlert.save({
+          session,
+        });
+      }
     }
-    else {
-    existingAlert.currentQuantity =
-        inventory.quantity;
-    await existingAlert.save({
-        session
+
+    await InventoryTransaction.create(
+      [
+        {
+          product: productId,
+          sourceLocation: locationId,
+          quantity,
+          type: "STOCK_OUT",
+          performedBy: req.user._id,
+          remarks: "Stock removed from inventory"
+        },
+      ],
+      { session },
+    );
+
+
+    await createAuditLog({
+      user: req.user._id,
+      action: "STOCK_OUT",
+      entityType: "Inventory",
+      entityId: inventory._id,
+      oldData: {
+        quantity: oldQuantity,
+      },
+      newData: {
+        quantity: inventory.quantity,
+      },
+      session,
     });
-}
+
+    await session.commitTransaction();
+    return res
+      .status(200)
+      .json(new ApiResponse(200, inventory, "Stock removed successfully"));
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    await session.endSession();
   }
-
-  await InventoryTransaction.create([{
-    product: productId,
-    sourceLocation: locationId,
-    quantity,
-    type: "STOCK_OUT",
-    performedBy: req.user._id,
-  }],{session});
-
-  await session.commitTransaction();
-  return res
-    .status(200)
-    .json(new ApiResponse(200, inventory, "Stock removed successfully"));
-
-}catch(error){
-   await session.abortTransaction();
-  throw error;
-}
-finally{
-  await session.endSession();
-}
 });
 
 const getInventory = asyncHandler(async (req, res) => {
@@ -230,8 +279,13 @@ const getInventoryByLocation = asyncHandler(async (req, res) => {
 });
 
 const transferInventory = asyncHandler(async (req, res) => {
-  const { productId, sourceLocationId, destinationLocationId, quantity } =
-    req.body;
+  const {
+    productId,
+    sourceLocationId,
+    destinationLocationId,
+    quantity,
+  } = req.body;
+
   if (
     !productId ||
     !sourceLocationId ||
@@ -240,81 +294,188 @@ const transferInventory = asyncHandler(async (req, res) => {
   ) {
     throw new ApiError(400, "All fields are required");
   }
+
   if (quantity <= 0) {
-    throw new ApiError(401, "Quantity must be greater then zero");
+    throw new ApiError(
+      400,
+      "Quantity must be greater than zero"
+    );
   }
 
   if (sourceLocationId === destinationLocationId) {
-    throw new ApiError(400, "Source and destination locations cannot be same");
+    throw new ApiError(
+      400,
+      "Source and destination locations cannot be same"
+    );
   }
 
-  const product = await Product.findById(productId);
-  if (!product) {
-    throw new ApiError(404, "Product not found");
-  }
+  const session = await mongoose.startSession();
 
-  const sourceLocation = await Location.findById(sourceLocationId);
-  const destinationLocation = await Location.findById(destinationLocationId);
+  try {
+    session.startTransaction();
 
-  if (!sourceLocation) {
-    throw new ApiError(404, "Source location not found");
-  }
+    const product = await Product.findById(productId)
+      .session(session);
 
-  if (!destinationLocation) {
-    throw new ApiError(404, "destination location not found");
-  }
+    if (!product) {
+      throw new ApiError(
+        404,
+        "Product not found"
+      );
+    }
 
-  const sourceInventory = await Inventory.findOne({
-    product: productId,
-    location: sourceLocationId,
-  });
+    const sourceLocation = await Location.findById(
+      sourceLocationId
+    ).session(session);
 
-  if (!sourceInventory) {
-    throw new ApiError(404, "Source inventory not found");
-  }
+    const destinationLocation = await Location.findById(
+      destinationLocationId
+    ).session(session);
 
-  if (sourceInventory.quantity < quantity) {
-    throw new ApiError(400, "Insufficient stock");
-  }
+    if (!sourceLocation) {
+      throw new ApiError(
+        404,
+        "Source location not found"
+      );
+    }
 
-  sourceInventory.quantity -= quantity;
-  await sourceInventory.save();
+    if (!destinationLocation) {
+      throw new ApiError(
+        404,
+        "Destination location not found"
+      );
+    }
 
-  let destinationInventory = await Inventory.findOne({
-    product: productId,
-    location: destinationLocationId,
-  });
-
-  if (!destinationInventory) {
-    destinationInventory = await Inventory.create({
+    let sourceInventory = await Inventory.findOne({
       product: productId,
-      location: destinationLocationId,
-      quantity,
+      location: sourceLocationId,
+    }).session(session);
+
+    if (!sourceInventory) {
+      throw new ApiError(
+        404,
+        "Source inventory not found"
+      );
+    }
+
+    if (sourceInventory.quantity < quantity) {
+      throw new ApiError(
+        400,
+        "Insufficient stock"
+      );
+    }
+
+    const oldSourceQuantity =
+      sourceInventory.quantity;
+
+    sourceInventory.quantity -= quantity;
+
+    await sourceInventory.save({
+      session,
     });
-  } else {
-    destinationInventory.quantity += quantity;
-    await destinationInventory.save();
-  }
 
-  await InventoryTransaction.create({
-    product: productId,
-    sourceLocation: sourceLocationId,
-    destinationLocation: destinationLocationId,
-    quantity,
-    type: "TRANSFER",
-    performedBy: req.user._id,
-  });
+    let destinationInventory =
+      await Inventory.findOne({
+        product: productId,
+        location: destinationLocationId,
+      }).session(session);
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
+    const oldDestQuantity =
+      destinationInventory?.quantity || 0;
+
+    if (!destinationInventory) {
+
+      const inventories =
+        await Inventory.create(
+          [
+            {
+              product: productId,
+              location: destinationLocationId,
+              quantity,
+            },
+          ],
+          {
+            session,
+          }
+        );
+
+      destinationInventory =
+        inventories[0];
+
+    } else {
+
+      destinationInventory.quantity += quantity;
+
+      await destinationInventory.save({
+        session,
+      });
+
+    }
+
+    await InventoryTransaction.create(
+      [
+        {
+          product: productId,
+          sourceLocation: sourceLocationId,
+          destinationLocation:
+            destinationLocationId,
+          quantity,
+          type: "TRANSFER",
+          performedBy: req.user._id,
+          remarks: "Inventory transfer",
+        },
+      ],
       {
-        sourceInventory,
-        destinationInventory,
+        session,
+      }
+    );
+
+    await createAuditLog({
+      user: req.user._id,
+      action: "TRANSFER",
+      entityType: "Inventory",
+      entityId: sourceInventory._id,
+
+      oldData: {
+        sourceQuantity:
+          oldSourceQuantity,
+        destinationQuantity:
+          oldDestQuantity,
       },
-      "Inventory transferred successfully",
-    ),
-  );
+
+      newData: {
+        sourceQuantity:
+          sourceInventory.quantity,
+        destinationQuantity:
+          destinationInventory.quantity,
+      },
+
+      session,
+    });
+
+    await session.commitTransaction();
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          sourceInventory,
+          destinationInventory,
+        },
+        "Inventory transferred successfully"
+      )
+    );
+
+  } catch (error) {
+
+    await session.abortTransaction();
+    throw error;
+
+  } finally {
+
+    await session.endSession();
+
+  }
 });
 
 export {

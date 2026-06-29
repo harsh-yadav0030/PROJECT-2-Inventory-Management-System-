@@ -1,5 +1,5 @@
-import { AuditLog } from "../models/auditLog.model";
-import { ApiResponse } from "../utils/ApiError.js";
+import { AuditLog } from "../models/auditLog.model.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 
