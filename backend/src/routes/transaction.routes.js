@@ -12,3 +12,7 @@ transactionRouter.get("/", verifyJwt, getAllTransactions);
 transactionRouter.get("/:id", verifyJwt, getTransactionById);
 
 export default transactionRouter;
+/**
+ * 
+ * 
+ */

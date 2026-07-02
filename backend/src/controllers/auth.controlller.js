@@ -3,11 +3,18 @@ import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+import dotenv from "dotenv";
+dotenv.config();
+
 const options = {
   httpOnly: true,
-  secure: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
 };
+//lax means send cookies through same site or authorised site 
+// none means send request (cross-site request)
 
+//generate and rotate access and refresh Token
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -124,60 +131,71 @@ const loginUser = asyncHandler(async (req, res) => {
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
     .json(
-         new ApiResponse(
-                200,
-                {
-                    user: loggedInUser
-                },
-                "User logged in successfully"
-        )
-    )
-});
-
-
-const getCurrentUser = asyncHandler(
-  async (req, res) => {
-    return res.status(200).json(
       new ApiResponse(
         200,
-        req.user,
-        "Current user fetched successfully"
-      )
-    );
-  }
-);
-
-const logoutUser = asyncHandler(async (req, res) => {
-
-    await User.findByIdAndUpdate(
-        req.user._id,
         {
-            $unset: {
-                refreshToken: 1
-            }
+          user: loggedInUser,
         },
-        {
-            new: true
-        }
+        "User logged in successfully",
+      ),
     );
-
-    const options = {
-        httpOnly: true,
-        secure: true
-    };
-
-    return res
-        .status(200)
-        .clearCookie("accessToken", options)
-        .clearCookie("refreshToken", options)
-        .json(
-            new ApiResponse(
-                200,
-                {},
-                "User logged out successfully"
-            )
-        );
 });
 
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+});
 
-export { generateAccessAndRefreshTokens, registerUser, loginUser ,getCurrentUser,logoutUser};
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $unset: {
+        refreshToken: 1,
+      },
+    },
+    {
+      new: true,
+    },
+  );
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const user=req.user;
+  const {accessToken,refreshToken}=generateAccessAndRefreshTokens(req.user._id);
+
+  return res
+  .status(200)
+  .cookie("accessToken",accessToken,options)
+  .cookie("refreshToken",refreshToken,options)
+  .json(
+      new ApiResponse(
+        200,
+        {
+                    user: req.user
+        },
+        "Access token refreshed successfully"
+      )
+  );
+});
+
+export {
+  generateAccessAndRefreshTokens,
+  registerUser,
+  loginUser,
+  getCurrentUser,
+  logoutUser,
+  refreshAccessToken,
+};
