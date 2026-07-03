@@ -2,7 +2,8 @@ import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-
+import { generateOTP } from "../utils/otp.js";
+import { verifyOTP } from "../utils/verifyOTP.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -11,7 +12,7 @@ const options = {
   secure: process.env.NODE_ENV === "production",
   sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
 };
-//lax means send cookies through same site or authorised site 
+//lax means send cookies through same site or authorised site
 // none means send request (cross-site request)
 
 //generate and rotate access and refresh Token
@@ -173,22 +174,210 @@ const logoutUser = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const user=req.user;
-  const {accessToken,refreshToken}=generateAccessAndRefreshTokens(req.user._id);
+  const user = req.user;
+  const { accessToken, refreshToken } = generateAccessAndRefreshTokens(
+    req.user._id,
+  );
 
   return res
-  .status(200)
-  .cookie("accessToken",accessToken,options)
-  .cookie("refreshToken",refreshToken,options)
-  .json(
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
       new ApiResponse(
         200,
         {
-                    user: req.user
+          user: req.user,
         },
-        "Access token refreshed successfully"
-      )
-  );
+        "Access token refreshed successfully",
+      ),
+    );
+});
+
+const sendLoginOTP = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Check whether email is provided
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  // find user
+  const user = await User.findOne({ email });
+
+  // Check whether user exists
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // Check whether account is active
+  if (!user.isActive) {
+    throw new ApiError(404, "User not Active");
+  }
+
+  // Generate OTP
+  const { otp, hashedOTP } = generateOTP();
+
+  // Store hashed OTP
+  user.otp = {
+    code: hashedOTP,
+    purpose: "LOGIN",
+    expiry: new Date(
+      Date.now() + 5 * 60 * 1000, // 5 minutes
+    ),
+  };
+
+  // Save user
+  await user.save({
+    validateBeforeSave: false,
+  });
+
+  try {
+    await sendEmail({
+      to: user.email,
+      subject: "Inventory Management System - Login OTP",
+      text: `Your OTP is ${otp}. It is valid for 5 minutes.`,
+    });
+  } catch (error) {
+    //unset otp
+    user.otp = {
+      code: null,
+      purpose: null,
+      expiry: null,
+    };
+
+    await user.save({
+      validateBeforeSave: false,
+    });
+
+    throw new ApiError(500, "Failed to send OTP");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "OTP sent successfully"));
+});
+
+const verifyLoginOTP = asyncHandler(async (req, res) => {
+
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+        throw new ApiError(
+            400,
+            "Email and OTP are required"
+        );
+    }
+
+    const session = await mongoose.startSession();
+
+    try {
+
+        session.startTransaction();
+
+        // Find user
+        const user = await User.findOne({
+            email
+        }).session(session);
+
+        // Check whether user exists
+        if (!user) {
+            throw new ApiError(
+                404,
+                "User not found"
+            );
+        }
+
+        // Check whether account is active
+        if (!user.isActive) {
+            throw new ApiError(
+                403,
+                "User account is inactive"
+            );
+        }
+
+        // Check whether OTP exists
+        if (!user.otp.code) {
+            throw new ApiError(
+                400,
+                "No OTP found. Please request a new OTP."
+            );
+        }
+
+        // Check OTP purpose
+        if (user.otp.purpose !== "LOGIN") {
+            throw new ApiError(
+                400,
+                "Invalid OTP purpose"
+            );
+        }
+
+        // Check OTP expiry
+        if (user.otp.expiry < Date.now()) {
+            throw new ApiError(
+                400,
+                "OTP has expired"
+            );
+        }
+
+        // Verify OTP
+        const isValidOTP = verifyOTP(
+            otp,
+            user.otp.code
+        );
+
+        if (!isValidOTP) {
+            throw new ApiError(
+                400,
+                "Invalid OTP"
+            );
+        }
+
+        // Generate Tokens
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        // Save refresh token
+        user.refreshToken = refreshToken;
+
+        // Clear OTP
+        user.otp = {
+            code: null,
+            purpose: null,
+            expiry: null,
+        };
+
+        await user.save({
+            session,
+            validateBeforeSave: false,
+        });
+
+        await session.commitTransaction();
+
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", refreshToken, options)
+            .json(
+                new ApiResponse(
+                    200,
+                    {
+                        accessToken,
+                        refreshToken,
+                    },
+                    "Login successful"
+                )
+            );
+
+    } catch (error) {
+        await session.abortTransaction();
+        throw error;
+
+    } finally {
+        await session.endSession();
+
+    }
+
 });
 
 export {
@@ -198,4 +387,5 @@ export {
   getCurrentUser,
   logoutUser,
   refreshAccessToken,
+  sendLoginOTP,
 };

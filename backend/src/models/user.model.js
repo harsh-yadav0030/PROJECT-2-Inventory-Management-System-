@@ -41,6 +41,24 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true, //instead of deleting when a worker leaves we basically disable them as inactive
     },
+    otp:{
+       code: {
+        type: String,
+        default: null
+      },
+      purpose: {
+        type: String,
+        enum: [
+            "LOGIN",
+            "RESET_PASSWORD"
+        ],
+        default: null
+      },
+      expiry: {
+        type: Date,
+        default: null
+      }
+    }
   },
   {
     timestamps: true,
