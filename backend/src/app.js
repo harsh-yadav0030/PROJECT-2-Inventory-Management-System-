@@ -11,7 +11,7 @@ import dashboardRouter from "./routes/dashboard.routes.js";
 import reportRouter from "./routes/report.routes.js";
 import auditRouter from "./routes/auditlog.routes.js";
 import  userRouter  from "./routes/user.routes.js";
-import testRouter from "./routes/test.routes.js";
+// import testRouter from "./routes/test.routes.js";
 
 const app = express();
 app.use(
@@ -35,6 +35,6 @@ app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/report",reportRouter);
 app.use("/api/v1/audit-logs",auditRouter);
 app.use("/api/v1/user",userRouter);
-app.use("/api/v1/test", testRouter);
+// app.use("/api/v1/test", testRouter);
 
 export default app;

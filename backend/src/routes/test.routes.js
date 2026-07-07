@@ -1,8 +1,8 @@
-import { Router } from "express";
-import { sendTestEmail } from "../controllers/test.controller.js";
+// import { Router } from "express";
+// import { sendTestEmail } from "../controllers/test.controller.js";
 
-const router = Router();
+// const router = Router();
 
-router.get("/send-email", sendTestEmail);
+// router.get("/send-email", sendTestEmail);
 
-export default router;
+// export default router;

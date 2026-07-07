@@ -4,6 +4,9 @@ import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { generateOTP } from "../utils/otp.js";
 import { verifyOTP } from "../utils/verifyOTP.js";
+import {sendEmail} from "../utils/sendEmail.js"
+import mongoose from "mongoose";
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -239,6 +242,7 @@ const sendLoginOTP = asyncHandler(async (req, res) => {
       text: `Your OTP is ${otp}. It is valid for 5 minutes.`,
     });
   } catch (error) {
+     console.log(error);
     //unset otp
     user.otp = {
       code: null,
@@ -354,17 +358,14 @@ const verifyLoginOTP = asyncHandler(async (req, res) => {
 
         await session.commitTransaction();
 
-        return res
+          return res
             .status(200)
             .cookie("accessToken", accessToken, options)
             .cookie("refreshToken", refreshToken, options)
             .json(
                 new ApiResponse(
                     200,
-                    {
-                        accessToken,
-                        refreshToken,
-                    },
+                    {},
                     "Login successful"
                 )
             );
@@ -376,8 +377,7 @@ const verifyLoginOTP = asyncHandler(async (req, res) => {
     } finally {
         await session.endSession();
 
-    }
-
+    }  
 });
 
 export {
@@ -388,4 +388,5 @@ export {
   logoutUser,
   refreshAccessToken,
   sendLoginOTP,
+  verifyLoginOTP
 };
