@@ -1,0 +1,1 @@
+import { Inventory } from "../src/models/inventory.model";

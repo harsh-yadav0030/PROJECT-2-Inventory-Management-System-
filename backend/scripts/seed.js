@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import connectDB from "../src/db/index.js";
 import seedProducts from "../seeders/products.seeder.js";
+import seedLocations from "../seeders/locations.seeder.js";
 dotenv.config();
 
 const seedDatabase = async () => {

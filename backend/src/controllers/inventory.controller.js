@@ -12,6 +12,7 @@ import { asyncHandler } from "../utils/asynchandler.js";
 import { InventoryTransaction } from "../models/inventoryTransaction.model.js";
 import { Alert } from "../models/alert.model.js";
 import { createAuditLog } from "../utils/createAudutLogs.js";
+import { getPagination } from "../utils/pagination.js";
 
 const stockIn = asyncHandler(async (req, res) => {
   const { productId, locationId, quantity } = req.body;
@@ -49,8 +50,7 @@ const stockIn = asyncHandler(async (req, res) => {
       location: locationId,
     }).session(session);
 
-
-    const oldQuantity = inventory?.quantity||0;
+    const oldQuantity = inventory?.quantity || 0;
 
     //Create Inventory
     if (!inventory) {
@@ -67,12 +67,10 @@ const stockIn = asyncHandler(async (req, res) => {
         },
       );
       inventory = inventories[0];
-
     } else {
       inventory.quantity += quantity;
       await inventory.save({ session });
     }
-
 
     const alert = await Alert.findOne({
       product: productId,
@@ -94,7 +92,7 @@ const stockIn = asyncHandler(async (req, res) => {
           quantity,
           type: "STOCK_IN",
           performedBy: req.user._id,
-          remarks: "Stock added in inventory"
+          remarks: "Stock added in inventory",
         },
       ],
       {
@@ -102,7 +100,7 @@ const stockIn = asyncHandler(async (req, res) => {
       },
     );
 
-     await createAuditLog({
+    await createAuditLog({
       user: req.user._id,
       action: "STOCK_IN",
       entityType: "Inventory",
@@ -211,12 +209,11 @@ const stockOut = asyncHandler(async (req, res) => {
           quantity,
           type: "STOCK_OUT",
           performedBy: req.user._id,
-          remarks: "Stock removed from inventory"
+          remarks: "Stock removed from inventory",
         },
       ],
       { session },
     );
-
 
     await createAuditLog({
       user: req.user._id,
@@ -245,46 +242,73 @@ const stockOut = asyncHandler(async (req, res) => {
 });
 
 const getInventory = asyncHandler(async (req, res) => {
+  const { page, limit, skip } = getPagination(req);
+  const totalItems = await Inventory.countDocuments();
   const inventory = await Inventory.find()
     .populate("product", "name sku category")
-    .populate("location", "name code");
+    .populate("location", "name code")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, inventory, "Inventory fetched successfully"));
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        inventory,
+        pagination: getPaginationMeta(page, limit, totalItems),
+      },
+      inventory.length
+        ? "Inventory fetched successfully"
+        : "No inventory available on this page.",
+    ),
+  );
 });
 
+
+
+
 const getInventoryByLocation = asyncHandler(async (req, res) => {
+
   const { locationId } = req.params;
   const location = await Location.findById(locationId);
+
   if (!location) {
     throw new ApiError(404, "Location not found");
   }
 
+  const { page, limit, skip } = getPagination(req);
+  const totalItems=await  Inventory.countDocuments({location: locationId});
+
   const inventory = await Inventory.find({
     location: locationId,
   })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 })
     .populate("product", "name sku category")
     .populate("location", "name code");
+
 
   return res
     .status(200)
     .json(
       new ApiResponse(
         200,
+        {
         inventory,
-        "Location inventory fetched successfully",
+        pagination: getPaginationMeta(page, limit, totalItems),
+        },
+        inventory.length
+        ? "Inventory fetched successfully"
+        : "No inventory available on this page.",
       ),
     );
 });
 
 const transferInventory = asyncHandler(async (req, res) => {
-  const {
-    productId,
-    sourceLocationId,
-    destinationLocationId,
-    quantity,
-  } = req.body;
+  const { productId, sourceLocationId, destinationLocationId, quantity } =
+    req.body;
 
   if (
     !productId ||
@@ -296,17 +320,11 @@ const transferInventory = asyncHandler(async (req, res) => {
   }
 
   if (quantity <= 0) {
-    throw new ApiError(
-      400,
-      "Quantity must be greater than zero"
-    );
+    throw new ApiError(400, "Quantity must be greater than zero");
   }
 
   if (sourceLocationId === destinationLocationId) {
-    throw new ApiError(
-      400,
-      "Source and destination locations cannot be same"
-    );
+    throw new ApiError(400, "Source and destination locations cannot be same");
   }
 
   const session = await mongoose.startSession();
@@ -314,36 +332,25 @@ const transferInventory = asyncHandler(async (req, res) => {
   try {
     session.startTransaction();
 
-    const product = await Product.findById(productId)
-      .session(session);
+    const product = await Product.findById(productId).session(session);
 
     if (!product) {
-      throw new ApiError(
-        404,
-        "Product not found"
-      );
+      throw new ApiError(404, "Product not found");
     }
 
-    const sourceLocation = await Location.findById(
-      sourceLocationId
-    ).session(session);
+    const sourceLocation =
+      await Location.findById(sourceLocationId).session(session);
 
     const destinationLocation = await Location.findById(
-      destinationLocationId
+      destinationLocationId,
     ).session(session);
 
     if (!sourceLocation) {
-      throw new ApiError(
-        404,
-        "Source location not found"
-      );
+      throw new ApiError(404, "Source location not found");
     }
 
     if (!destinationLocation) {
-      throw new ApiError(
-        404,
-        "Destination location not found"
-      );
+      throw new ApiError(404, "Destination location not found");
     }
 
     let sourceInventory = await Inventory.findOne({
@@ -352,21 +359,14 @@ const transferInventory = asyncHandler(async (req, res) => {
     }).session(session);
 
     if (!sourceInventory) {
-      throw new ApiError(
-        404,
-        "Source inventory not found"
-      );
+      throw new ApiError(404, "Source inventory not found");
     }
 
     if (sourceInventory.quantity < quantity) {
-      throw new ApiError(
-        400,
-        "Insufficient stock"
-      );
+      throw new ApiError(400, "Insufficient stock");
     }
 
-    const oldSourceQuantity =
-      sourceInventory.quantity;
+    const oldSourceQuantity = sourceInventory.quantity;
 
     sourceInventory.quantity -= quantity;
 
@@ -374,42 +374,34 @@ const transferInventory = asyncHandler(async (req, res) => {
       session,
     });
 
-    let destinationInventory =
-      await Inventory.findOne({
-        product: productId,
-        location: destinationLocationId,
-      }).session(session);
+    let destinationInventory = await Inventory.findOne({
+      product: productId,
+      location: destinationLocationId,
+    }).session(session);
 
-    const oldDestQuantity =
-      destinationInventory?.quantity || 0;
+    const oldDestQuantity = destinationInventory?.quantity || 0;
 
     if (!destinationInventory) {
-
-      const inventories =
-        await Inventory.create(
-          [
-            {
-              product: productId,
-              location: destinationLocationId,
-              quantity,
-            },
-          ],
+      const inventories = await Inventory.create(
+        [
           {
-            session,
-          }
-        );
+            product: productId,
+            location: destinationLocationId,
+            quantity,
+          },
+        ],
+        {
+          session,
+        },
+      );
 
-      destinationInventory =
-        inventories[0];
-
+      destinationInventory = inventories[0];
     } else {
-
       destinationInventory.quantity += quantity;
 
       await destinationInventory.save({
         session,
       });
-
     }
 
     await InventoryTransaction.create(
@@ -417,8 +409,7 @@ const transferInventory = asyncHandler(async (req, res) => {
         {
           product: productId,
           sourceLocation: sourceLocationId,
-          destinationLocation:
-            destinationLocationId,
+          destinationLocation: destinationLocationId,
           quantity,
           type: "TRANSFER",
           performedBy: req.user._id,
@@ -427,7 +418,7 @@ const transferInventory = asyncHandler(async (req, res) => {
       ],
       {
         session,
-      }
+      },
     );
 
     await createAuditLog({
@@ -437,17 +428,13 @@ const transferInventory = asyncHandler(async (req, res) => {
       entityId: sourceInventory._id,
 
       oldData: {
-        sourceQuantity:
-          oldSourceQuantity,
-        destinationQuantity:
-          oldDestQuantity,
+        sourceQuantity: oldSourceQuantity,
+        destinationQuantity: oldDestQuantity,
       },
 
       newData: {
-        sourceQuantity:
-          sourceInventory.quantity,
-        destinationQuantity:
-          destinationInventory.quantity,
+        sourceQuantity: sourceInventory.quantity,
+        destinationQuantity: destinationInventory.quantity,
       },
 
       session,
@@ -462,19 +449,14 @@ const transferInventory = asyncHandler(async (req, res) => {
           sourceInventory,
           destinationInventory,
         },
-        "Inventory transferred successfully"
-      )
+        "Inventory transferred successfully",
+      ),
     );
-
   } catch (error) {
-
     await session.abortTransaction();
     throw error;
-
   } finally {
-
     await session.endSession();
-
   }
 });
 

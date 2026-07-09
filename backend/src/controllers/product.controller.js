@@ -73,16 +73,10 @@ const getAllProducts = asyncHandler(async (req, res) => {
     Math.max(parseInt(req.query.limit) || 10, 1),
     100
 );
-  const skip = (page - 1) * limit;
-
-  const products = await Product.find() 
-  .sort({ createdAt: -1 })
-  .skip(skip).limit(limit);
-
+  
   const totalProducts = await Product.countDocuments(); 
-  const totalPages = Math.ceil(totalProducts / limit);
 
-if (totalProducts === 0) {
+  if (totalProducts === 0) {
     return res.status(200).json(
         new ApiResponse(
             200,
@@ -96,7 +90,15 @@ if (totalProducts === 0) {
             "No products have been added yet."
         )
     );
-}
+  }
+
+  const skip = (page - 1) * limit;
+
+  const products = await Product.find() 
+  .sort({ createdAt: -1 })
+  .skip(skip).limit(limit);
+  
+  const totalPages = Math.ceil(totalProducts / limit);
 
   return res
     .status(200)
@@ -104,10 +106,13 @@ if (totalProducts === 0) {
       new ApiResponse(200,
         {
           products,
+          pagination:{
           page,
           limit,
           totalProducts,
           totalPages, 
+          }
+          
         },
          products.length
             ? "Products fetched successfully"
