@@ -4,6 +4,7 @@ import { Alert } from "../models/alert.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 
+
 const getInventoryReport = asyncHandler(async (req, res) => {
   const report = await Inventory.find(
     req.reportFilter, // restricted location access hai in case of manager
@@ -17,6 +18,7 @@ const getInventoryReport = asyncHandler(async (req, res) => {
       new ApiResponse(200, report, "Inventory report generated successfully"),
     );
 });
+
 
 const getTransactionReport = asyncHandler(async (req, res) => {
 
@@ -51,6 +53,7 @@ const getTransactionReport = asyncHandler(async (req, res) => {
     );
 });
 
+
 const getLowStockReport = asyncHandler(async (req, res) => {
   const report = await Alert.find({
     status: "ACTIVE",
@@ -65,5 +68,6 @@ const getLowStockReport = asyncHandler(async (req, res) => {
       new ApiResponse(200, report, "Low stock report generated successfully"),
     );
 });
+
 
 export { getInventoryReport, getTransactionReport, getLowStockReport };

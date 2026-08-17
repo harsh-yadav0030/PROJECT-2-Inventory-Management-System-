@@ -32,7 +32,7 @@ const locations = [
   {
     name: "Hyderabad Warehouse",
     code: "HYD001",
-    address: "Hitech City, Hyderabad, Telangana",
+    address: "HITEC City, Hyderabad, Telangana",
     status: "ACTIVE",
   },
   {
@@ -56,9 +56,129 @@ const locations = [
   {
     name: "Jaipur Warehouse",
     code: "JAI001",
-    address: "Sitapura Industrial Area, Jaipur, Rajasthan",
+    address: "Sitapura, Jaipur, Rajasthan",
     status: "ACTIVE",
   },
+  {
+    name: "Ahmedabad Warehouse",
+    code: "AHM001",
+    address: "Naroda, Ahmedabad, Gujarat",
+    status: "ACTIVE",
+  },
+  {
+    name: "Lucknow Warehouse",
+    code: "LKO001",
+    address: "Gomti Nagar, Lucknow, Uttar Pradesh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Bhopal Warehouse",
+    code: "BHO001",
+    address: "MP Nagar, Bhopal, Madhya Pradesh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Nagpur Warehouse",
+    code: "NAG001",
+    address: "MIHAN, Nagpur, Maharashtra",
+    status: "ACTIVE",
+  },
+  {
+    name: "Patna Warehouse",
+    code: "PAT001",
+    address: "Kankarbagh, Patna, Bihar",
+    status: "ACTIVE",
+  },
+  {
+    name: "Kanpur Warehouse",
+    code: "KAN001",
+    address: "Panki, Kanpur, Uttar Pradesh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Chandigarh Warehouse",
+    code: "CHD001",
+    address: "Industrial Area Phase II, Chandigarh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Coimbatore Warehouse",
+    code: "CBE001",
+    address: "Peelamedu, Coimbatore, Tamil Nadu",
+    status: "ACTIVE",
+  },
+  {
+    name: "Kochi Warehouse",
+    code: "KOC001",
+    address: "Kakkanad, Kochi, Kerala",
+    status: "ACTIVE",
+  },
+  {
+    name: "Visakhapatnam Warehouse",
+    code: "VSK001",
+    address: "Gajuwaka, Visakhapatnam, Andhra Pradesh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Bhubaneswar Warehouse",
+    code: "BBS001",
+    address: "Mancheswar, Bhubaneswar, Odisha",
+    status: "ACTIVE",
+  },
+  {
+    name: "Guwahati Warehouse",
+    code: "GUW001",
+    address: "Beltola, Guwahati, Assam",
+    status: "ACTIVE",
+  },
+  {
+    name: "Ranchi Warehouse",
+    code: "RAN001",
+    address: "Namkum, Ranchi, Jharkhand",
+    status: "ACTIVE",
+  },
+  {
+    name: "Raipur Warehouse",
+    code: "RPR001",
+    address: "Tatibandh, Raipur, Chhattisgarh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Ludhiana Warehouse",
+    code: "LUD001",
+    address: "Focal Point, Ludhiana, Punjab",
+    status: "ACTIVE",
+  },
+  {
+    name: "Amritsar Warehouse",
+    code: "AMR001",
+    address: "Ranjit Avenue, Amritsar, Punjab",
+    status: "ACTIVE",
+  },
+  {
+    name: "Noida Warehouse",
+    code: "NOI001",
+    address: "Sector 63, Noida, Uttar Pradesh",
+    status: "ACTIVE",
+  },
+  {
+    name: "Faridabad Warehouse",
+    code: "FBD001",
+    address: "Ballabhgarh, Faridabad, Haryana",
+    status: "ACTIVE",
+  },
+  {
+    name: "Mysuru Warehouse",
+    code: "MYS001",
+    address: "Hebbal Industrial Area, Mysuru, Karnataka",
+    status: "ACTIVE",
+  },
+  {
+    name: "Nashik Warehouse",
+    code: "NSK001",
+    address: "Satpur MIDC, Nashik, Maharashtra",
+    status: "ACTIVE",
+  }
 ];
 
 export default locations;

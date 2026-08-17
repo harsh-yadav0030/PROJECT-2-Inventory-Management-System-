@@ -2,6 +2,8 @@ import { Location } from "../models/location.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asynchandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { getPagination,getPaginationMeta} from "../utils/pagination.js";
+import mongoose from "mongoose";
 
 const createLocation = asyncHandler(async (req, res) => {
   const { name, code, address, manager, status } = req.body;
@@ -10,14 +12,13 @@ const createLocation = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Name, code and address are required");
   }
 
-const existingLocation =
-    await Location.findOne({
-        code: code.toUpperCase()
-    });  
-    
-if (existingLocation) {
+  const existingLocation = await Location.findOne({
+    code: code.toUpperCase(),
+  });
+
+  if (existingLocation) {
     throw new ApiError(409, "Location already exists");
-}
+  }
 
   const location = await Location.create({
     name,
@@ -33,17 +34,33 @@ if (existingLocation) {
 });
 
 const getAllLocations = asyncHandler(async (req, res) => {
-  const locations = await Location.find().populate("manager", "fullname email");
+  const { page, limit, skip } = getPagination(req);
+  const totalLocations = await Location.countDocuments();
+
+  const locations = await Location.find().populate("manager", "fullname email")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
   return res
     .status(200)
-    .json(new ApiResponse(200, locations, "Locations fetched successfully"));
+    .json(new ApiResponse(200, 
+      {
+        locations,
+        pagination:getPaginationMeta(page, limit, totalLocations),
+      },
+      locations.length?
+      "Locations fetched successfully":
+      "No Locations available on this page."));
 });
 
 const getLocationById = asyncHandler(async (req, res) => {
-  const location = await Location.findById(req.params.id).populate(
-    "manager",
-    "fullname email",
-  );
+  // console.log(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    throw new ApiError(400, "Invalid location ID");
+}
+  const location = await Location.findById(req.params.id)
+  .populate("manager", "fullname email",);
 
   if (!location) {
     throw new ApiError(404, "Location not found");
@@ -70,37 +87,35 @@ const updateLocation = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200,updateLocation, "Location updated successfully"));
+    .json(
+      new ApiResponse(200, updateLocation, "Location updated successfully"),
+    );
 });
 
 const deleteLocation = asyncHandler(async (req, res) => {
-
   const location = await Location.findByIdAndUpdate(
     req.params.id,
     {
-      status:"INACTIVE" //set the status Inactive we are not deleting from records so that it will be helpful in future
+      status: "INACTIVE", //set the status Inactive we are not deleting from records so that it will be helpful in future
     },
     {
-      new:true
-    }
+      new: true,
+    },
   );
 
   if (!location) {
-        throw new ApiError(
-            404,
-            "Location not found"
-        );
+    throw new ApiError(404, "Location not found");
   }
 
-  return res.status(200).json(
-        new ApiResponse(
-            200,
-            {},
-            "Location deactivated successfully"
-        )
-  );
-
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Location deactivated successfully"));
 });
 
-
-export { createLocation, getAllLocations, getLocationById, updateLocation , deleteLocation };
+export {
+  createLocation,
+  getAllLocations,
+  getLocationById,
+  updateLocation,
+  deleteLocation,
+};

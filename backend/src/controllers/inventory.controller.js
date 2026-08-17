@@ -266,10 +266,7 @@ const getInventory = asyncHandler(async (req, res) => {
 });
 
 
-
-
 const getInventoryByLocation = asyncHandler(async (req, res) => {
-
   const { locationId } = req.params;
   const location = await Location.findById(locationId);
 
@@ -460,10 +457,58 @@ const transferInventory = asyncHandler(async (req, res) => {
   }
 });
 
+const getInventoryByProduct = asyncHandler(async(req,res)=>{
+  const {ProductId} = req.params;
+
+  // Validate Product ID
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    throw new ApiError(400, "Invalid product ID");
+  }
+
+  // Check whether product exists in our Products 
+  const product = await Product.findById(productId).select(
+    "name sku unitPrice status"
+  );
+
+  const {page,limit,skip} = getPagination(req);
+
+  // Count inventory records for this product at diff locations
+  const totalItems = await Inventory.countDocuments({
+    product: productId,
+  });
+
+  const inventory=await inventory.find({
+    product : ProductId
+  })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate("location", "name code");
+
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+  
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        product,
+        inventory,
+        pagination: getPaginationMeta(page, limit, totalItems),
+      },
+      inventory.length
+        ? "Product inventory fetched successfully"
+        : "Product is not available in any warehouse."
+    )
+  );
+});
+
 export {
   stockIn,
   stockOut,
   getInventory,
   getInventoryByLocation,
   transferInventory,
+  getInventoryByProduct
 };

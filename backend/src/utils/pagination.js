@@ -10,6 +10,7 @@ export const getPagination = (req,res)=>{
         skip: (page - 1) * limit,
     };
 };
+
 export const getPaginationMeta = (page, limit, totalItems) => {
 
     return {
